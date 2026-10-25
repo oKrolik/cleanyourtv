@@ -1,6 +1,8 @@
 package com.gathin.tvhome;
 
 import android.animation.ArgbEvaluator;
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
 import android.app.Activity;
 import android.app.Dialog;
@@ -61,6 +63,7 @@ import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
 import android.view.Window;
 import android.view.animation.AnimationUtils;
+import android.view.animation.DecelerateInterpolator;
 import android.view.animation.LayoutAnimationController;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -169,6 +172,31 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private boolean animations;
     private boolean advancedEffects;
     private TextView greeting;
+    /** center_clock: the clock and greeting centred above the dock, shown while the dock has focus. */
+    private boolean centerClock, centerShown;
+    private View centerBlock;
+    private TextView centerGreeting;
+    /** more_apps_hint: the arrow and text under the dock; null when the theme sets no text. */
+    private TextView moreHint;
+    /** weather_temp: the temperature before the top buttons; null when the key is off. */
+    private TextView weatherTemp;
+    /** The dock's band; with center_clock it steps aside while a tile below the dock has focus. */
+    private DockDecoration dockDecoration;
+    /**
+     * center_clock: every app as one even grid, from the first Down until Up on the first row (or Home) goes back to
+     * the clean Home; the dock apps' row stays part of the grid in between.
+     */
+    private boolean allApps;
+    private ValueAnimator collapseAnimator;
+    /** The tile Down from the clean Home goes to, focused once the move into all apps is over; -1 for none. */
+    private int pendingFocus = -1;
+    /**
+     * Whether shared storage was ready when Home was built. Right after a boot Home can start before it is: the theme's
+     * settings then come from the launcher's own copy, but its wallpapers live only there, so Home is built again once
+     * the storage is ready (storageArrived).
+     */
+    private boolean storageAtStart;
+    private float collapseTarget;
     private View clockBlock;
     private View btnInputs;
     /** config show_inputs_pill: false keeps the Inputs pill hidden even when the TV has inputs. */
@@ -359,8 +387,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private final Runnable minuteTick = new Runnable() {
         @Override
         public void run() {
+            if (storageArrived()) return;
             updateGreeting();
             updateRace();
+            updateWeather();
             // The pill follows the network callbacks and each return to Home; only the diya's flame follows the
             // signal level, so only it needs this minute's binder calls (about 7 ms on the UI thread).
             if (festive) updateWifiLabel();
@@ -376,6 +406,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         setContentView(R.layout.activity_main);
         density = getResources().getDisplayMetrics().density;
         // config.xml, overlaid by config.json from a pushed theme (see Config and tools/theme.sh).
+        storageAtStart = storageReady();
         Config cfg = Config.load(this);
         appLibrarySelection = cfg.appLibrarySelection;
         libraryOkOpens = cfg.libraryOkOpens;
@@ -450,6 +481,24 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         clockBlock = findViewById(R.id.leftBlock);
         greetingColor = greeting.getCurrentTextColor();
         if (!cfg.showGreeting) greeting.setVisibility(View.GONE);
+        centerClock = cfg.centerClock;
+        if (centerClock) {
+            // The date stays at the top left on its own; the clock and greeting move above the dock.
+            greeting.setVisibility(View.GONE);
+            findViewById(R.id.clock).setVisibility(View.GONE);
+            findViewById(R.id.ampm).setVisibility(View.GONE);
+            findViewById(R.id.clockDivider).setVisibility(View.GONE);
+            centerBlock = findViewById(R.id.centerBlock);
+            centerBlock.setVisibility(View.VISIBLE);
+            centerGreeting = findViewById(R.id.centerGreeting);
+            if (!cfg.showGreeting) centerGreeting.setVisibility(View.GONE);
+        }
+        if (!cfg.moreAppsHint.isEmpty()) {
+            moreHint = findViewById(R.id.moreHint);
+            moreHint.setText(cfg.moreAppsHint);
+            moreHint.setVisibility(View.VISIBLE);
+        }
+        if (cfg.weatherTemp) weatherTemp = findViewById(R.id.weatherTemp);
         if (cfg.headerWhite) {
             // The clock's own white for the date and the line before it, instead of their dimmed whites.
             ((TextView) findViewById(R.id.date)).setTextColor(Color.WHITE);
@@ -571,8 +620,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             public void onChildViewDetachedFromWindow(@NonNull View v) {
             }
         });
-        if (dockRow) grid.addItemDecoration(new DockDecoration(COLUMNS, density, cinematic, cfg.alwaysShowNames, cfg.dockOpacity, cfg.dockGlass, cfg.dockEvenPadding, cfg.dockBand,
-                singleRow, cfg.dockBandAll));
+        if (dockRow) grid.addItemDecoration(dockDecoration = new DockDecoration(COLUMNS, density, cinematic, cfg.alwaysShowNames, cfg.dockOpacity, cfg.dockGlass, cfg.dockEvenPadding, cfg.dockBand,
+                singleRow, cfg.dockBandAll, cfg.dockCornerRadius, cfg.moreAppsHint.isEmpty() || singleRow ? 0 : 48));
         if (cfg.fadeRows) TopFade.attach(grid, 48 * density);
         // Reduced motion: the tiles are simply there, with no entrance (reloadApps skips it there too).
         if (animations && !reducedMotion) {
@@ -887,6 +936,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (openLauncherSettingsIfAsked(intent)) return;
         if (openInputsIfAsked(intent)) return;
         if (intent == null || !intent.hasCategory(Intent.CATEGORY_HOME)) return;
+        allApps = false;
+        pendingFocus = -1;
         grid.scrollToPosition(0);
         lastFocused = 0;
         lastFocusedKey = adapter.getItemCount() > 0 ? adapter.keyAt(0) : null;
@@ -928,6 +979,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             recreate();
             return;
         }
+        if (storageArrived()) return;
         restartIdleClock();
         promptsPaused = false;
         if (grid.getAdapter() == null) grid.setAdapter(adapter);   // dropped by onTrimMemory
@@ -947,6 +999,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (openLiveTvAfterBoot()) return;
         updateGreeting();
         updateRace();
+        updateWeather();
         // The network and Inputs pills keep their state while Home is in the background, and callbacks update them
         // when the network or the inputs change, so this refresh only catches anything missed. Its binder calls
         // (about 7 ms on a TCL C755, most of it WifiManager.getConnectionInfo) would hold up the first frame back
@@ -1647,7 +1700,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             springY.animateToFinalPosition(y - glassScrollShift);
         }
         View item = (View) card.getParent();
-        if (dockRow && (singleRow || position < COLUMNS)) {
+        // center_clock: below the dock every app sits in one even grid, the dock apps as its first row. The rows
+        // move when the dock's band and gap come and go, so place everything again once they have.
+        boolean inDock = dockRow && (singleRow || position < COLUMNS);
+        if (centerClock && !inDock) allApps = true;
+        if (centerClock && allApps) inDock = false;
+        if (centerClock && dockDecoration != null && collapseDock(!inDock, item.getTop(), item.getBottom(),
+                Integer.MAX_VALUE)) return;
+        if (inDock) {
             // Dock: park it at the bottom of the screen and show the top shelf for this app. In a single row
             // every tile is in the dock's row, which never scrolls vertically.
             int decoratedTop = item.getTop() - (int) (6 * density);
@@ -1660,6 +1720,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 else grid.smoothScrollBy(0, dy);
             }
             showHero(position, scroll ? r.top - dy : r.top);
+            showCenter(scroll ? r.top - dy : r.top, r.height());
         } else {
             // Below the dock (or in a plain grid) the glow follows the tile without the big name; letting it
             // fade out left the grid on plain black.
@@ -1959,6 +2020,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
      * name above the dock does not show (every grid tile has its name underneath).
      */
     private void showGlowOnly(int position) {
+        hideCenter();
         int color = adapter.ambientColorAt(position);
         stopAmbientAnimation();
         hero.animate().cancel();
@@ -1985,6 +2047,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     private void hideHero() {
+        hideCenter();
         if (!heroShown) return;
         stopAmbientAnimation();
         hero.animate().cancel();
@@ -2000,6 +2063,161 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             ambient.setAlpha(0f);
             heroArt.setAlpha(0f);
         }
+    }
+
+    private static boolean storageReady() {
+        return Environment.MEDIA_MOUNTED.equals(Environment.getExternalStorageState());
+    }
+
+    /** Shared storage came up after Home was built without it (see storageAtStart): build Home again with the theme. */
+    private boolean storageArrived() {
+        if (storageAtStart || !storageReady()) return false;
+        storageAtStart = true;
+        recreate();
+        return true;
+    }
+
+    /** center_clock transition: the fade before the rows move (into all apps) or after they have (back to Home), ms. */
+    private static final long FADE_MS = 120, MOVE_MS = 340;
+
+    /**
+     * center_clock: turns the dock into the first row of every app, or back. Into all apps the clock, the hint, the band
+     * and the highlight fade out first; then one eased move closes the gap under the dock and scrolls the page by
+     * the exact amount the focused row needs, so nothing moves twice. Back to Home it is the same in reverse. Returns
+     * true while a change runs: the tile's placement waits for it (settleAfterLayout).
+     */
+    private boolean collapseDock(boolean collapse, int itemTop, int itemBottom, int contentBottom) {
+        float target = collapse ? 1f : 0f;
+        if (collapseAnimator != null) {
+            if (collapseTarget == target) return true;
+            collapseAnimator.cancel();
+            collapseAnimator = null;
+        } else if (dockDecoration.collapse() == target) {
+            return false;
+        }
+        collapseTarget = target;
+        float from = dockDecoration.collapse();
+        int gap = Math.round(dockDecoration.gapPx() * (target - from));
+        // Into all apps: the focused row's bottom (and the glass margin) at the grid's visible bottom, as
+        // requestChildRectangleOnScreen would leave it, once the gap above it is gone. Back: the dock parked.
+        int scroll = collapse
+                ? itemBottom - gap + (int) (6 * density) - (grid.getHeight() - grid.getPaddingBottom())
+                : itemTop - (int) (6 * density) - grid.getPaddingTop();
+        // Never past the end of the page: a scroll cut short there would leave the last rows to drift back as the
+        // gap finishes closing.
+        if (collapse) scroll = Math.max(0, Math.min(scroll, contentBottom - gap + grid.getPaddingBottom() - grid.getHeight()));
+        if (!animations || reducedMotion) {
+            dockDecoration.setCollapse(target);
+            dockDecoration.setBandFade(1f - target);
+            grid.invalidateItemDecorations();
+            if (collapse) hideCenter();
+            settleAfterLayout();
+            return true;
+        }
+        hideGlass();
+        if (collapse) hideCenter();
+        final int total = scroll;
+        final int[] done = {0};
+        DecelerateInterpolator ease = new DecelerateInterpolator(1.5f);
+        ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
+        animator.setDuration(FADE_MS + MOVE_MS);
+        animator.setInterpolator(null);   // linear time; the phases ease themselves
+        animator.addUpdateListener(a -> {
+            float t = a.getAnimatedFraction() * (FADE_MS + MOVE_MS);
+            float fade = Math.min(1f, (collapse ? t : t - MOVE_MS) / FADE_MS);
+            float move = ease.getInterpolation(Math.max(0f, Math.min(1f, (collapse ? t - FADE_MS : t) / MOVE_MS)));
+            dockDecoration.setBandFade(collapse ? 1f - fade : Math.max(0f, fade));
+            dockDecoration.setCollapse(from + (target - from) * move);
+            grid.invalidateItemDecorations();
+            int want = Math.round(total * move);
+            if (want != done[0]) {
+                grid.scrollBy(0, want - done[0]);
+                done[0] = want;
+            }
+               });
+        animator.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator a) {
+                if (collapseAnimator != a) return;   // cancelled for a newer one
+                collapseAnimator = null;
+                settleAfterLayout();
+            }
+        });
+        collapseAnimator = animator;
+        animator.start();
+        return true;
+    }
+
+    /** Runs the focused tile's placement again once the grid has laid out its rows where they now are. */
+    private void settleAfterLayout() {
+        grid.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
+            @Override
+            public void onGlobalLayout() {
+                grid.getViewTreeObserver().removeOnGlobalLayoutListener(this);
+                if (pendingFocus >= 0) {
+                    int target = pendingFocus;
+                    pendingFocus = -1;
+                    focusTile(target);
+                    return;
+                }
+                int pos = focusedTilePosition();
+                RecyclerView.ViewHolder vh = pos < 0 ? null : grid.findViewHolderForAdapterPosition(pos);
+                View card = vh == null ? null : vh.itemView.findViewById(R.id.card);
+                if (card != null && card.isFocused()) onTileFocused(pos, card);
+            }
+        });
+        grid.requestLayout();
+    }
+
+    /** center_clock: the gap between the greeting and the dock's tiles, in dp. */
+    private static final float CENTER_GAP_DP = 83;
+
+    /** center_clock and more_apps_hint: the clock block just above the dock and the hint just under it. */
+    private void showCenter(float tileTop, int tileHeight) {
+        if (centerBlock != null) {
+            centerBlock.setY(tileTop - CENTER_GAP_DP * density - centerBlock.getHeight());
+            if (centerBlock.getHeight() == 0) centerBlock.post(() -> {
+                if (centerShown) centerBlock.setY(tileTop - CENTER_GAP_DP * density - centerBlock.getHeight());
+            });
+        }
+        if (moreHint != null) {
+            moreHint.setY(tileTop + tileHeight + 26 * density);
+            moreHint.setVisibility(adapter.appCount() > COLUMNS ? View.VISIBLE : View.GONE);
+        }
+        if (centerShown) return;
+        centerShown = true;
+        for (View v : new View[]{centerBlock, moreHint}) {
+            if (v == null) continue;
+            v.animate().cancel();
+            if (animations && !reducedMotion) v.animate().alpha(1f).setDuration(260).start();
+            else v.setAlpha(1f);
+        }
+    }
+
+    private void hideCenter() {
+        if (!centerShown) return;
+        centerShown = false;
+        for (View v : new View[]{centerBlock, moreHint}) {
+            if (v == null) continue;
+            v.animate().cancel();
+            if (animations && !reducedMotion) v.animate().alpha(0f).setDuration(FADE_MS).start();
+            else v.setAlpha(0f);
+        }
+    }
+
+    /**
+     * weather_temp: the helper app's last reading, hidden while there is none. Asked off the UI thread: the first
+     * query after a boot starts the helper's process, which would hold up Home's first frame.
+     */
+    private void updateWeather() {
+        if (weatherTemp == null) return;
+        new Thread(() -> {
+            String text = Weather.read(getContentResolver());
+            handler.post(() -> {
+                weatherTemp.setVisibility(text == null ? View.GONE : View.VISIBLE);
+                if (text != null) weatherTemp.setText(text);
+            });
+        }).start();
     }
 
     private void hideGlass() {
@@ -2232,6 +2450,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     rtlAppGrid, keyCode == KeyEvent.KEYCODE_DPAD_LEFT);
         }
         if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+            if (position < COLUMNS && centerClock && allApps) {
+                // The first row of every app: Up goes back to the clean Home, on the same dock app.
+                allApps = false;
+                RecyclerView.ViewHolder vh = grid.findViewHolderForAdapterPosition(position);
+                View card = vh == null ? null : vh.itemView.findViewById(R.id.card);
+                if (card != null && card.isFocused()) onTileFocused(position, card);
+                grid.playSoundEffect(SoundEffectConstants.NAVIGATION_UP);
+                return true;
+            }
             if (position < COLUMNS) return false;          // dock row: let focus move to the top bar
             target = position - COLUMNS;
         } else {
@@ -2241,6 +2468,21 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 return true;
             }
             target = Math.min(position + COLUMNS, count - 1);
+            RecyclerView.ViewHolder dock = grid.findViewHolderForAdapterPosition(position);
+            if (centerClock && !allApps && position < COLUMNS && dockDecoration != null && dock != null) {
+                // Focus stays on the dock until the move is over: focusing the hidden row now would make the grid
+                // scroll to it by itself, and then the gap closing would move the rows a second time. The row under
+                // the dock is off the screen and not laid out, so its bottom comes from the dock's: the gap, then a row
+                // of the same height.
+                View row = dock.itemView;
+                allApps = true;
+                pendingFocus = target;
+                int lastRow = (adapter.appCount() - 1) / COLUMNS;
+                collapseDock(true, 0, row.getBottom() + dockDecoration.gapPx() + row.getHeight(),
+                        row.getBottom() + dockDecoration.gapPx() + lastRow * row.getHeight());
+                grid.playSoundEffect(SoundEffectConstants.NAVIGATION_DOWN);
+                return true;
+            }
         }
         focusTile(target);
         // The default focus search clicks for Left/Right; Up/Down are handled here, so click for them too.
@@ -2282,7 +2524,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         ViewGroup bar = findViewById(R.id.topButtons);
         for (int i = 0; i < bar.getChildCount(); i++) {
             View button = bar.getChildAt(i);
-            if (button != btnInputs && button.getVisibility() == View.VISIBLE) return button;
+            if (button != btnInputs && button.getVisibility() == View.VISIBLE && button.isFocusable()) return button;
         }
         return findViewById(R.id.btnSettings);
     }
@@ -2480,6 +2722,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     : getString(R.string.greeting_with_name, getString(res), greetingName));
             greeting.setTextColor(greetingColor);
         }
+        if (centerGreeting != null) centerGreeting.setText(greeting.getText());
         if (shamsi) shamsiDate.setText(Shamsi.today(getResources()));
         if (lunar) lunarDate.setText(Lunar.today(getResources(), lunarOffset));
     }

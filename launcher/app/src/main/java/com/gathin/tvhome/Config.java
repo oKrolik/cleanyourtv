@@ -246,6 +246,14 @@ final class Config {
     final boolean singleRow;
     /** With single_row, the band runs behind every app in the row, not only the dock apps (config.xml, dock_band_all). */
     final boolean dockBandAll;
+    /** The dock band's corner radius in dp, 0 for the radius worked out from the tiles (config.xml, dock_corner_radius). */
+    final int dockCornerRadius;
+    /** The clock large and centred above the dock, the greeting under it (config.xml, center_clock). */
+    final boolean centerClock;
+    /** The text under the dock that says Down shows more apps; empty shows nothing (config.xml, more_apps_hint). */
+    final String moreAppsHint;
+    /** The outside temperature from the weather-feed helper app before the top buttons (config.xml, weather_temp). */
+    final boolean weatherTemp;
 
     private Config(List<String> dockApps, boolean fillDock, List<String> hiddenApps, List<String> libraryApps, String liveTvPackage,
                    String liveTvAction, String liveTvInputId, Map<String, String> launchActions, Map<String, String> appLabels,
@@ -260,7 +268,12 @@ final class Config {
                    List<RaceWeekend.Race> raceCalendar, boolean cinematicHome, boolean ambientGlow, boolean appGlow, boolean fadeRows, int homeIdleClockMinutes,
                    boolean keyFilter, boolean dockGlass, String glowStyle, boolean wallpaperCaptions,
                    boolean handleViewInputs, boolean tileMenu, boolean dockEvenPadding, boolean dockBand, boolean cinematicDots, boolean cinematicWhiteFocus, boolean wifiStatusColor, int cinematicScrim, int cinematicArt,
-                   Map<String, Set<String>> wallpaperMoods, boolean gamepadPassthrough, boolean consumeVolumeKeys, boolean powerOnHome, boolean wifiStatusWarnings, List<String> topBarApps, boolean showGreeting, boolean headerWhite, boolean clockWallpaper, int clockWallpaperDim, boolean clockGlow, String glassStyle, boolean singleRow, boolean dockBandAll, boolean lunarDate, int lunarUtcOffset, boolean dateBelowClock) {
+                   Map<String, Set<String>> wallpaperMoods, boolean gamepadPassthrough, boolean consumeVolumeKeys, boolean powerOnHome, boolean wifiStatusWarnings, List<String> topBarApps, boolean showGreeting, boolean headerWhite, boolean clockWallpaper, int clockWallpaperDim, boolean clockGlow, String glassStyle, boolean singleRow, boolean dockBandAll, boolean lunarDate, int lunarUtcOffset, boolean dateBelowClock,
+                   int dockCornerRadius, boolean centerClock, String moreAppsHint, boolean weatherTemp) {
+        this.dockCornerRadius = dockCornerRadius;
+        this.centerClock = centerClock;
+        this.moreAppsHint = moreAppsHint;
+        this.weatherTemp = weatherTemp;
         this.handleViewInputs = handleViewInputs;
         this.tileMenu = tileMenu;
         this.inputKeycodes = inputKeycodes;
@@ -475,6 +488,10 @@ final class Config {
         String glassStyle = res.getString(R.string.glass_style);
         boolean singleRow = res.getBoolean(R.bool.single_row);
         boolean dockBandAll = res.getBoolean(R.bool.dock_band_all);
+        int dockCornerRadius = res.getInteger(R.integer.dock_corner_radius);
+        boolean centerClock = res.getBoolean(R.bool.center_clock);
+        String moreAppsHint = res.getString(R.string.more_apps_hint).trim();
+        boolean weatherTemp = res.getBoolean(R.bool.weather_temp);
         boolean applied = false;
 
         File dir = dir(ctx);
@@ -575,6 +592,10 @@ final class Config {
             dockBandAll = bool(json, "dock_band_all", dockBandAll);
             glowStyle = string(json, "glow_style", glowStyle);
             glassStyle = string(json, "glass_style", glassStyle);
+            dockCornerRadius = integer(json, "dock_corner_radius", dockCornerRadius, 0, 60);
+            centerClock = bool(json, "center_clock", centerClock);
+            moreAppsHint = string(json, "more_apps_hint", moreAppsHint).trim();
+            weatherTemp = bool(json, "weather_temp", weatherTemp);
         }
         // A top-bar app is moved there, not copied: it leaves the grid.
         for (String pkg : topBarApps) if (!hidden.contains(pkg)) hidden.add(pkg);
@@ -635,7 +656,7 @@ final class Config {
                 dockBand, cinematicDots, cinematicWhiteFocus, wifiStatusColor, cinematicScrim, cinematicArt, wallpaperMoods, gamepadPassthrough,
                 consumeVolumeKeys, powerOnHome, wifiStatusWarnings, topBarApps, showGreeting, headerWhite, clockWallpaper,
                 Math.max(0, Math.min(90, clockWallpaperDim)), clockGlow, glassStyle, singleRow && dockRow, dockBandAll, lunar, lunarOffset,
-                dateBelowClock);
+                dateBelowClock, Math.max(0, Math.min(60, dockCornerRadius)), centerClock, moreAppsHint, weatherTemp);
     }
 
     /**

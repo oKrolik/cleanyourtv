@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The place whose temperature the launcher shows, in decimal degrees (north and east positive).
+         The default is Vila Nova de Gaia, Portugal. -->
+    <string name="latitude" translatable="false">41.124</string>
+    <string name="longitude" translatable="false">-8.612</string>
+    <!-- How old a reading may be before the next query fetches a new one, in minutes. -->
+    <integer name="refresh_minutes">30</integer>
+</resources>

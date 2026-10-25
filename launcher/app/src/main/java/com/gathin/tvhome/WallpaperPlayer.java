@@ -90,7 +90,7 @@ final class WallpaperPlayer {
         image.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         names = config.wallpaperCaptions && config.wallpaperEnabled && !files.isEmpty()
                 ? WallpaperCaptions.read(files.get(0).getParentFile()) : Collections.emptyMap();
-        caption = names.isEmpty() ? null : makeCaption(context, root);
+        caption = names.isEmpty() ? null : makeCaption(context, root, config.centerClock);
         if (config.wallpaperEnabled && !files.isEmpty()) {
             root.addView(image, 0, new FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
@@ -205,9 +205,10 @@ final class WallpaperPlayer {
 
     /**
      * Small light text under the top-right buttons, above everything else and never focusable. It sits where the
-     * top bar ends in every layout, so it does not cover the clock, the stats line or the tiles.
+     * top bar ends in every layout, so it does not cover the clock, the stats line or the tiles. With center_clock the
+     * top right holds the temperature, so the caption goes to the bottom left corner instead.
      */
-    private static TextView makeCaption(Context context, FrameLayout root) {
+    private static TextView makeCaption(Context context, FrameLayout root, boolean bottomLeft) {
         float dp = context.getResources().getDisplayMetrics().density;
         TextView text = new TextView(context);
         text.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
@@ -224,9 +225,14 @@ final class WallpaperPlayer {
             // the system font is fine
         }
         FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.END);
-        params.topMargin = Math.round(110 * dp);
-        params.setMarginEnd(Math.round(62 * dp));
+                ViewGroup.LayoutParams.WRAP_CONTENT, bottomLeft ? Gravity.BOTTOM | Gravity.START : Gravity.TOP | Gravity.END);
+        if (bottomLeft) {
+            params.bottomMargin = Math.round(16 * dp);
+            params.setMarginStart(Math.round(40 * dp));
+        } else {
+            params.topMargin = Math.round(110 * dp);
+            params.setMarginEnd(Math.round(62 * dp));
+        }
         root.addView(text, params);
         return text;
     }

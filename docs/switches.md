@@ -50,3 +50,7 @@ fits the rules; keys from before the rule sit on its wanted list until a screens
 | `library_ok_opens` | <img src="switches/library_ok_opens.jpg" width="320" alt="library_ok_opens on a TV"> |
 | `date_below_clock` | <img src="switches/date_below_clock.jpg" width="320" alt="date_below_clock on a TV"> |
 | `power_on_home` | <img src="switches/power_on_home.jpg" width="320" alt="power_on_home on a TV"> |
+| `center_clock` | <img src="../themes/nature/screenshot.jpg" width="320" alt="center_clock on a TV"> |
+| `more_apps_hint` | <img src="../themes/nature/screenshot.jpg" width="320" alt="more_apps_hint on a TV"> |
+| `dock_corner_radius` | <img src="../themes/nature/screenshot.jpg" width="320" alt="dock_corner_radius on a TV"> |
+| `weather_temp` | <img src="../themes/nature/screenshot.jpg" width="320" alt="weather_temp on a TV"> |

@@ -55,6 +55,8 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="com.gathin.tvhome.category.DOCK_CARD" />
         </intent>
+        <!-- weather_temp: the weather-feed helper app's last reading (Weather.java). -->
+        <provider android:authorities="com.gathin.weatherfeed" />
         <!-- stock_home_redirect: HomeKeyService looks up the stock launcher's HOME activity. -->
         <intent>
             <action android:name="android.intent.action.MAIN" />
