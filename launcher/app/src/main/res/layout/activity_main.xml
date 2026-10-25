@@ -146,6 +146,44 @@
             android:visibility="gone" />
     </LinearLayout>
 
+    <!-- center_clock: the clock and the greeting centred above the dock, placed in code like the top shelf. -->
+    <LinearLayout
+        android:id="@+id/centerBlock"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:alpha="0"
+        android:visibility="gone"
+        android:importantForAccessibility="no">
+
+        <TextClock
+            android:id="@+id/centerClock"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:format12Hour="h:mm"
+            android:format24Hour="HH:mm"
+            android:textColor="#FFFFFFFF"
+            android:textSize="112sp"
+            android:fontFamily="@string/font_extralight"
+            android:letterSpacing="-0.03"
+            android:includeFontPadding="false"
+            android:shadowColor="#66000000"
+            android:shadowRadius="24" />
+
+        <TextView
+            android:id="@+id/centerGreeting"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="-6dp"
+            android:singleLine="true"
+            android:textColor="#FFFFFFFF"
+            android:textSize="26sp"
+            android:fontFamily="@string/font_light"
+            android:shadowColor="#66000000"
+            android:shadowRadius="16" />
+    </LinearLayout>
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -322,6 +360,22 @@
                 android:clipToPadding="false"
                 android:orientation="horizontal">
 
+                <!-- weather_temp: the outside temperature from the weather-feed helper app; never focusable. -->
+                <TextView
+                    android:id="@+id/weatherTemp"
+                    android:layout_width="wrap_content"
+                    android:layout_height="42dp"
+                    android:layout_marginEnd="14dp"
+                    android:gravity="center_vertical"
+                    android:singleLine="true"
+                    android:textColor="#FFFFFFFF"
+                    android:textSize="18sp"
+                    android:fontFamily="@string/font_light"
+                    android:shadowColor="#80000000"
+                    android:shadowRadius="8"
+                    android:focusable="false"
+                    android:visibility="gone" />
+
                 <TextView
                     android:id="@+id/btnInputs"
                     style="@style/TopButton"
@@ -385,6 +439,26 @@
                 android:descendantFocusability="afterDescendants" />
         </FrameLayout>
     </LinearLayout>
+
+    <!-- more_apps_hint: a down arrow and the theme's text under the dock, placed in code. -->
+    <TextView
+        android:id="@+id/moreHint"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:drawableTop="@drawable/ic_chevron_down"
+        android:gravity="center_horizontal"
+        android:singleLine="true"
+        android:textColor="#D9FFFFFF"
+        android:textSize="12sp"
+        android:fontFamily="@string/font_medium"
+        android:letterSpacing="0.2"
+        android:textAllCaps="true"
+        android:shadowColor="#99000000"
+        android:shadowRadius="8"
+        android:alpha="0"
+        android:visibility="gone"
+        android:importantForAccessibility="no" />
 
     <!-- The single floating glass highlight that springs between tiles. -->
     <com.gathin.tvhome.GlassView

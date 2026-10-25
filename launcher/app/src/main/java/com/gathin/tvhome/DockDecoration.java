@@ -34,6 +34,18 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
     private final boolean singleRow;
     /** dock_band_all: in a single row, the band runs behind every app instead of the dock apps only. */
     private final boolean bandAll;
+    /** dock_corner_radius in px; 0 keeps the radius worked out from the tiles. */
+    private final float cornerRadius;
+    /** more_apps_hint: extra room under the dock, in px, for the hint; it also pushes the next row off the screen. */
+    private final int hintRoom;
+    /**
+     * center_clock below the dock: how much of the gap under the dock is gone, 0 (the dock) to 1 (an ordinary grid row).
+     * The space above the dock stays, so the dock row itself never moves while it changes (MainActivity animates it).
+     */
+    private float collapse;
+    /** The band's own opacity, faded out apart from the gap. */
+    private float bandFade = 1f;
+    private final int bandAlpha, edgeAlpha;
 
     /**
      * @param translucent the cinematic shelf's band: the artwork and the glow show through it.
@@ -44,10 +56,14 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
      * @param bandVisible false skips the band and its edge, so the tiles float on the wallpaper (dock_band).
      * @param singleRow   every app sits in the dock's row (single_row); the band covers the dock apps only, unless bandAll.
      * @param bandAll     with singleRow, the band runs behind every app in the row (dock_band_all).
+     * @param cornerDp    the band's corner radius in dp (dock_corner_radius); 0 works it out from the tiles.
+     * @param hintRoomDp  extra gap under the dock for the more_apps_hint text, in dp; 0 for none.
      */
     DockDecoration(int dockSize, float density, boolean translucent, boolean names, int opacity, boolean lightGlass,
-                   boolean evenPadding, boolean bandVisible, boolean singleRow, boolean bandAll) {
+                   boolean evenPadding, boolean bandVisible, boolean singleRow, boolean bandAll, int cornerDp, int hintRoomDp) {
         this.dockSize = dockSize;
+        this.cornerRadius = cornerDp * density;
+        this.hintRoom = (int) (hintRoomDp * density);
         this.singleRow = singleRow;
         this.bandAll = singleRow && bandAll;
         this.density = density;
@@ -59,6 +75,8 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
         edge.setStyle(Paint.Style.STROKE);
         edge.setStrokeWidth(density);
         edge.setColor(lightGlass ? 0x38FFFFFF : translucent ? 0x26FFFFFF : 0x1FFFFFFF);
+        bandAlpha = band.getAlpha();
+        edgeAlpha = edge.getAlpha();
     }
 
     /** Concentric corners: the band's radius is the tiles' radius plus the band's padding around them. */
@@ -75,19 +93,39 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
         return Math.max(0f, Math.min(gap, roomPx));
     }
 
+    float collapse() {
+        return collapse;
+    }
+
+    /** The gap under the dock, in px, while it is fully there. */
+    int gapPx() {
+        return Math.round(12 * density) + hintRoom;
+    }
+
+    void setCollapse(float collapse) {
+        this.collapse = collapse;
+    }
+
+    /** The band's opacity, 0 to 1. */
+    void setBandFade(float fade) {
+        bandFade = fade;
+        band.setAlpha(Math.round(bandAlpha * fade));
+        edge.setAlpha(Math.round(edgeAlpha * fade));
+    }
+
     @Override
     public void getItemOffsets(@NonNull Rect outRect, @NonNull View view, @NonNull RecyclerView parent,
                                @NonNull RecyclerView.State state) {
         int pos = parent.getChildAdapterPosition(view);
         if (pos >= 0 && (singleRow || pos < dockSize)) {
             outRect.top = (int) (6 * density);
-            outRect.bottom = (int) (12 * density);
+            outRect.bottom = Math.round(gapPx() * (1 - collapse));
         }
     }
 
     @Override
     public void onDraw(@NonNull Canvas c, @NonNull RecyclerView parent, @NonNull RecyclerView.State state) {
-        if (!bandVisible) return;
+        if (!bandVisible || bandFade <= 0f) return;
         boolean any = false;
         int cardWidth = 0;
         for (int i = 0; i < parent.getChildCount(); i++) {
@@ -139,6 +177,7 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
             rect.right = Math.min(rect.right, parent.getWidth() - density);
         }
         rect.bottom += namesRoom;
+        if (cornerRadius > 0) radius = cornerRadius;
         if (lightGlass && (rect.top != shaderTop || rect.bottom != shaderBottom)) {
             // The pills' glass (pill_bg: white, 18% fading to 8%), a little fainter over this much larger area.
             band.setShader(new LinearGradient(0, rect.top, 0, rect.bottom, 0x24FFFFFF, 0x0DFFFFFF,

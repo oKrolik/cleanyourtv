@@ -1,0 +1,32 @@
+{
+  "dock_apps": [
+    "com.google.android.youtube.tv",
+    "com.netflix.ninja",
+    "net.comeandsee.ott.thechosen",
+    "com.stremio.one",
+    "com.plexapp.android"
+  ],
+  "columns": 5,
+  "rows_below_dock": 0,
+  "center_clock": true,
+  "more_apps_hint": "Mais apps",
+  "weather_temp": true,
+  "dock_title": false,
+  "header_white": true,
+  "icon_only_buttons": true,
+  "icon_only_inputs": true,
+  "background_color": "#05070C",
+  "wallpaper": true,
+  "wallpaper_rotation_minutes": 1440,
+  "wallpaper_order": "shuffle",
+  "wallpaper_dim": 25,
+  "wallpaper_captions": true,
+  "dock_glass": false,
+  "dock_opacity": 40,
+  "dock_corner_radius": 16,
+  "dock_even_padding": true,
+  "ambient_glow": false,
+  "app_glow": false,
+  "fade_rows": true,
+  "focus_overshoot": false
+}

@@ -17,10 +17,11 @@
 
     <!-- Apps pinned to the dock row at the bottom, in this order. Missing apps are skipped. -->
     <string-array name="dock_apps">
-        <item>com.netflix.ninja</item>
         <item>com.amazon.amazonvideo.livingroom</item>
+        <item>com.disney.disneyplus</item>
+        <item>com.apple.atve.androidtv.appletv</item>
+        <item>com.netflix.ninja</item>
         <item>com.google.android.youtube.tv</item>
-        <item>in.startv.hotstar</item>
     </string-array>
     <!-- With fewer dock_apps than columns (or a dock app that is not installed), the free dock slots take
          the first grid apps, so the dock never shows a gap. false leaves them empty (#162); a theme can
@@ -29,12 +30,12 @@
 
     <!-- Apps never shown as tiles (e.g. the Live TV app, which the Inputs menu already covers). -->
     <string-array name="hidden_apps">
-        <item>com.mediatek.wwtv.tvcenter</item>
+        <item>com.mitv.livetv</item>
         <item>com.mitv.gallery</item>
     </string-array>
 
     <!-- The TV's Live TV / tuner app, offered at the end of the Inputs menu. Leave empty to omit. -->
-    <string name="live_tv_package" translatable="false">com.mediatek.wwtv.tvcenter</string>
+    <string name="live_tv_package" translatable="false">com.mitv.livetv</string>
 
     <!-- Open the Live TV app above the first time Home comes up after the TV is switched on, for sets that are
          mostly used for broadcast TV. Once per boot: Home after that stays Home. Can also be set with
@@ -321,7 +322,7 @@
 
     <!-- Tiles per row in the grid; the dock always has this many slots. Tiles are 180dp wide at 4 columns and
          shrink to fit from 5 up (about 144dp at 5, 117dp at 6 on a 1080p TV). -->
-    <integer name="columns">4</integer>
+    <integer name="columns">5</integer>
 
     <!-- Basic motion is on; advanced effects are opt-in in the launcher's own Settings screen. -->
     <bool name="animations">true</bool>
@@ -436,4 +437,20 @@
          faint outer glow), rim (the crisp rim alone, no sheen, fill or glow, for a quiet focus over a wallpaper) or
          halo (the rim with a lighter outer glow). Can also be set with "glass_style": "rim" in a theme's config.json. -->
     <string name="glass_style" translatable="false">glass</string>
+    <!-- The dock band's corner radius in dp; 0 (the default) keeps the radius the band works out from its tiles.
+         Can also be set with "dock_corner_radius" in a theme's config.json (0 to 60). -->
+    <integer name="dock_corner_radius">0</integer>
+    <!-- A large clock centred above the dock with the greeting under it, instead of the clock at the top left;
+         the date stays at the top left on its own. Below the dock, every app (the dock apps first) sits in one even
+         grid with no band, until Up on its first row (or Home) goes back. Use it with dock_title false, which leaves that space free.
+         Can also be set with "center_clock": true in a theme's config.json. -->
+    <bool name="center_clock">false</bool>
+    <!-- A small down arrow and this text under the dock while the dock is focused, as a reminder that Down shows
+         the rest of the apps ("More apps"). Shown only when there are more apps than the dock holds. Empty (the
+         default) shows nothing. Can also be set with "more_apps_hint" in a theme's config.json. -->
+    <string name="more_apps_hint" translatable="false"></string>
+    <!-- The outside temperature before the top-right buttons, read from the weather-feed helper app
+         (the weather-feed add-on), which is the one that goes online; the launcher itself never does. Hidden while
+         that app is not installed or has no reading yet. Can also be set with "weather_temp": true in a theme. -->
+    <bool name="weather_temp">false</bool>
 </resources>
